@@ -19,10 +19,14 @@ buildscript {
       'maven': '3.5.0',
       'mavenAnnotations': '3.5',
       'mavenPluginBuilder': '1.2.1',
-      'mavenPublish': '0.4.0',
+      'mavenPublish': '0.6.0',
   ]
 
   ext.deps = [
+      plugins: [
+          android: 'com.android.tools.build:gradle:3.2.0',
+          kotlin: "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}",
+      ],    
       'android': "com.google.android:android:${versions.android}",
       'guava': "com.google.guava:guava:${versions.guava}",
       'okio': "com.squareup.okio:okio:${versions.okio}",
@@ -35,7 +39,6 @@ buildscript {
           'annotations': "com.google.auto.value:auto-value-annotations:${versions.autovalue}"
       ],
       'kotlin': [
-          'gradle': "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}",
           'stdlib': [
               'jdk6': "org.jetbrains.kotlin:kotlin-stdlib",
               'jdk8': "org.jetbrains.kotlin:kotlin-stdlib-jdk8",
@@ -64,7 +67,7 @@ buildscript {
   ]
 
   dependencies {
-    classpath deps.kotlin.gradle
+    classpath deps.plugins.kotlin
     classpath deps.animalSniffer.gradle
     classpath deps.maven.plugin.builder
     classpath deps.maven.plugin.publish
@@ -81,6 +84,7 @@ allprojects {
   version = VERSION_NAME
 
   repositories {
+    google()
     mavenCentral()
   }
 }
@@ -98,3 +102,43 @@ subprojects {
 }
 
 apply from: 'gen-tests.gradle'
+
+tasks {
+  def runtime = tasks.register("installRuntimeToMavenLocal", GradleBuild.class) {
+    dir = file("wire-runtime")
+    tasks = ["installArchives"]
+  }
+
+  def schema = tasks.register("installSchemaToMavenLocal", GradleBuild.class) {
+    dir = file("wire-schema")
+    tasks = ["installArchives"]
+  }
+
+  def javagen = tasks.register("installJavaGeneratorToMavenLocal", GradleBuild.class) {
+    dir = file("wire-java-generator")
+    tasks = ["installArchives"]
+  }
+
+  def kotlingen = tasks.register("installKotlinGeneratorToMavenLocal", GradleBuild.class) {
+    dir = file("wire-kotlin-generator")
+    tasks = ["installArchives"]
+  }
+
+  def compiler = tasks.register("installCompilerToMavenLocal", GradleBuild.class) {
+    dir = file("wire-compiler")
+    tasks = ["installArchives"]
+    dependsOn(runtime, schema, javagen, kotlingen)
+  }
+
+  def plugin = tasks.register("installPluginToMavenLocal", GradleBuild.class) {
+    dir = file("wire-gradle-plugin")
+    tasks = ["installArchives"]
+    dependsOn(compiler)
+  }
+
+  tasks.register("assembleSample", GradleBuild.class) {
+    dir = file("sample")
+    tasks = ["assemble"]
+    dependsOn(plugin)
+  }
+}
