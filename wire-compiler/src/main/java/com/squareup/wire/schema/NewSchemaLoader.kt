@@ -16,6 +16,10 @@
 package com.squareup.wire.schema
 
 import com.google.common.io.Closer
+import com.squareup.wire.schema.SchemaLoader.DESCRIPTOR_PROTO
+import com.squareup.wire.schema.internal.parser.ProtoParser
+import okio.buffer
+import okio.source
 import java.io.Closeable
 import java.io.IOException
 import java.nio.file.FileSystem
@@ -52,6 +56,18 @@ class NewSchemaLoader(
   fun load(): List<ProtoFile> {
     check(loaded.isEmpty()) { "do not reuse instances of this class" }
 
+//    val resourceUri = SchemaLoader::class.java.classLoader.getResource(DESCRIPTOR_PROTO).toURI()
+//    val env = mapOf("create" to "true")
+//    val jarFileSystem = FileSystems.newFileSystem(resourceUri, env)
+//    val resourceRoots =
+//        allRoots(closer, listOf(jarFileSystem.getPath(DESCRIPTOR_PROTO).toString()))
+//    for (resourceRoot in resourceRoots) {
+//      for (locationAndPath in resourceRoot.allProtoFiles()) {
+//        load(locationAndPath)
+//      }
+//    }
+//    loaded[DESCRIPTOR_PROTO] = loadDescriptorProto()
+
     // Load all of the sources, discovering imports as we go.
     val mutableSourceLocationPaths = mutableSetOf<String>()
     val sourceRoots = allRoots(closer, sourcePath)
@@ -83,6 +99,22 @@ class NewSchemaLoader(
     }
 
     return loaded.values.toList()
+  }
+
+  /**
+   * Returns Google's protobuf descriptor, which defines standard options like default, deprecated,
+   * and java_package. If the user has provided their own version of the descriptor proto, that is
+   * preferred.
+   */
+  @Throws(IOException::class)
+  fun loadDescriptorProto(): ProtoFile {
+    val resourceAsStream = SchemaLoader::class.java.getResourceAsStream("/$DESCRIPTOR_PROTO")
+    resourceAsStream.source().buffer().use { source ->
+      val data = source.readUtf8()
+      val location = Location.get(DESCRIPTOR_PROTO)
+      val element = ProtoParser.parse(location, data)
+      return ProtoFile.get(element)
+    }
   }
 
   private fun load(locationAndPath: LocationAndPath) {
